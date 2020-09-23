@@ -552,10 +552,13 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                     && ngx_strncasecmp(header[i].value.data,
                         (u_char *) "gzip", 4) == 0)
             {
+                header[i].key.len = 0;
+                header[i].value.len = 0;
                 decompress = 1;
                 break;
             }
         }
+
         ctx->checked = 1;
         if (!decompress) {
             ctx->skip = 1;
