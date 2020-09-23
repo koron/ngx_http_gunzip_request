@@ -27,6 +27,9 @@ typedef struct {
     unsigned             done:1;
     unsigned             nomem:1;
 
+    unsigned             skip:1;
+    unsigned             checked:1;
+
     size_t               sum;
 
     z_stream             zstream;
@@ -498,8 +501,8 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_chain_t            *cl;
     int                     rc;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                "[gunzreq] filter invoked");
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[gunzreq] filter invoked");
+
     for (cl = in; cl; cl = cl->next) {
         ngx_log_debug7(NGX_LOG_DEBUG_EVENT, r->connection->log, 0,
                        "[gunzreq] new buf t:%d f:%d %p, pos %p, size: %z "
@@ -516,43 +519,54 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_request_body_filter(r, in);
     }
 
-    part = &r->headers_in.headers.part;
-    header = part->elts;
-    for (i = 0; /* void */; i++) {
+    ctx = ngx_http_get_module_ctx(r, ngx_http_gunzip_request_module);
+    if (ctx == NULL) {
+        ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_gunzip_request_ctx_t));
+        if (ctx == NULL) {
+            return NGX_ERROR;
+        }
+        ngx_http_set_ctx(r, ctx, ngx_http_gunzip_request_module);
+    }
 
-        if (i >= part->nelts) {
-            if (part->next == NULL) {
+    if (ctx->done || ctx->skip) {
+        return ngx_http_next_request_body_filter(r, in);
+    }
+
+    if (!ctx->checked) {
+        part = &r->headers_in.headers.part;
+        header = part->elts;
+        for (i = 0; /* void */; i++) {
+            if (i >= part->nelts) {
+                if (part->next == NULL) {
+                    break;
+                }
+                part = part->next;
+                header = part->elts;
+                i = 0;
+            }
+            if (header[i].key.len == sizeof("Content-Encoding") - 1
+                    && ngx_strncasecmp(header[i].key.data,
+                        (u_char *) "Content-Encoding",
+                        sizeof("Content-Encoding") - 1) == 0
+                    && header[i].value.len == 4
+                    && ngx_strncasecmp(header[i].value.data,
+                        (u_char *) "gzip", 4) == 0)
+            {
+                decompress = 1;
                 break;
             }
-
-            part = part->next;
-            header = part->elts;
-            i = 0;
         }
-
-        if (header[i].key.len == sizeof("Content-Encoding") - 1
-            && ngx_strncasecmp(header[i].key.data,
-                               (u_char *) "Content-Encoding",
-                               sizeof("Content-Encoding") - 1) == 0
-            && header[i].value.len == 4
-            && ngx_strncasecmp(header[i].value.data,
-                               (u_char *) "gzip", 4) == 0)
-        {
-            decompress = 1;
-            break;
+        ctx->checked = 1;
+        if (!decompress) {
+            ctx->skip = 1;
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[gunzreq] thru");
+            rc = ngx_http_next_request_body_filter(r, in);
+            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[gunzreq] thru next post: rc=%d busy.size=%d", rc, (ctx->busy != NULL ? ngx_buf_size(ctx->busy->buf) : -1));
+            return rc;
         }
     }
 
-    if (!decompress) {
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                "[gunzreq] thru");
-        rc = ngx_http_next_request_body_filter(r, in);
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[gunzreq] thru next post: rc=%d busy.size=%d", rc, (ctx->busy != NULL ? ngx_buf_size(ctx->busy->buf) : -1));
-        return rc;
-    }
-
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "[gunzreq] decompress request body");
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[gunzreq] decompress request body");
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_gunzip_request_module);
     if (ctx != NULL && ctx->done) {
