@@ -32,9 +32,9 @@ Example of partial nginx.conf:
 location /gunzip_request/ {
     gunzip_request on;
 
-    # remove "Content-Encoding: gzip" header from request.
-    # FIXME: this should be done by this module.
-    proxy_set_header content-encoding '';
+    # no need this anymore
+    ## remove "Content-Encoding: gzip" header from request.
+    #proxy_set_header content-encoding '';
 
     # general configurations for reverse proxy
     proxy_pass http://192.168.0.123:8000/;
