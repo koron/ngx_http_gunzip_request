@@ -26,6 +26,9 @@ $ sudo make install
 *   `gunzip_request_buffers` - integer, optional.
     number of buffer pages for inflation.
 
+These two configurations can be put into root level, `server` block, and
+`location` block.
+
 Example of partial nginx.conf:
 
 ```nginx
@@ -44,4 +47,28 @@ location /gunzip_request/ {
     # unlimit POST body size for tests
     #client_max_body_size 0;
 }
+```
+
+## Dynamic module
+
+To build `ngx_http_gunzip_request` as dynamic module, at first you should
+configure with `--add-dynamic-module` option instead of `--add-module` option.
+
+For example:
+
+```console
+$ ./auto/configure --prefix=/opt/nginx \
+    --add-dynamic-module=/path/to/ngx_http_gunzip_request
+$ make
+$ sudo make install
+```
+
+Next add `load_module` directive at prior of nginx.conf file.
+
+`load_module` ディレクティブはなるべく nginx.conf の先頭のほうに書いたほうが良いです。
+
+```nginx`
+load_module /opt/nginx/modules/ngx_http_gunzip_request.so;
+
+# your other configurations...
 ```
