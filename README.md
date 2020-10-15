@@ -67,7 +67,7 @@ Next add `load_module` directive at prior of nginx.conf file.
 
 `load_module` ディレクティブはなるべく nginx.conf の先頭のほうに書いたほうが良いです。
 
-```nginx`
+```nginx
 load_module /opt/nginx/modules/ngx_http_gunzip_request.so;
 
 # your other configurations...
