@@ -2,6 +2,9 @@
 
 This is nginx module that inflating gzipped requests.
 
+It works on requests with `Content-Encoding: gzip` header.  Inflate requests
+and rewrite `Content-Encoding: identity` header, then pass those to upstream.
+
 ## Build
 
 To configure nginx to use `ngx_http_gunzip_request` module,
@@ -35,7 +38,7 @@ Example of partial nginx.conf:
 location /gunzip_request/ {
     gunzip_request on;
 
-    # no need this anymore
+    # no need this anymore, this module rewrites it to "identity"
     ## remove "Content-Encoding: gzip" header from request.
     #proxy_set_header content-encoding '';
 
