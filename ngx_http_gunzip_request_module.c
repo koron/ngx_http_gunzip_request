@@ -552,8 +552,7 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                     && ngx_strncasecmp(header[i].value.data,
                         (u_char *) "gzip", 4) == 0)
             {
-                header[i].key.len = 0;
-                header[i].value.len = 0;
+                ngx_str_set(&header[i].value, "identity");
                 decompress = 1;
                 break;
             }
