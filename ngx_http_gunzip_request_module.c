@@ -379,7 +379,7 @@ ngx_http_gunzip_request_inflate(ngx_http_request_t *r,
         if (conf->max_inflate_size > 0 && ctx->sum > conf->max_inflate_size) {
             ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                     "[gunzreq] overflow max inflate size: %d > %d", ctx->sum, conf->max_inflate_size);
-            return NGX_ERROR;
+            return NGX_DECLINED;
         }
     }
     ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -663,6 +663,12 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             if (rc == NGX_ERROR) {
                 goto failed;
             }
+	    if (rc == NGX_DECLINED) {
+		ctx->done = 1;
+		(void) ngx_http_discard_request_body(r);
+		ngx_http_finalize_request(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE);
+		return NGX_OK;
+	    }
             /* rc == NGX_AGAIN */
         }
 
