@@ -7,6 +7,7 @@
 typedef struct {
     ngx_flag_t           enable;
     ngx_bufs_t           bufs;
+    size_t               max_inflate_size;
 } ngx_http_gunzip_request_conf_t;
 
 
@@ -59,13 +60,20 @@ static ngx_command_t  ngx_http_gunzip_request_commands[] = {
       offsetof(ngx_http_gunzip_request_conf_t, bufs),
       NULL },
 
+    { ngx_string("gunzip_request_max_inflate_size"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_gunzip_request_conf_t, max_inflate_size),
+      NULL },
+
       ngx_null_command
 };
 
 
 static ngx_http_module_t  ngx_http_gunzip_request_module_ctx = {
     NULL,                                  /* preconfiguration */
-    ngx_http_gunzip_request_init,     	   /* postconfiguration */
+    ngx_http_gunzip_request_init,          /* postconfiguration */
 
     NULL,                                  /* create main configuration */
     NULL,                                  /* init main configuration */
@@ -109,6 +117,8 @@ ngx_http_gunzip_request_create_conf(ngx_conf_t *cf)
 
     conf->enable = NGX_CONF_UNSET;
 
+    conf->max_inflate_size = NGX_CONF_UNSET_SIZE;
+
     return conf;
 }
 
@@ -123,6 +133,8 @@ ngx_http_gunzip_request_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_bufs_value(conf->bufs, prev->bufs,
                               (128 * 1024) / ngx_pagesize, ngx_pagesize);
+
+    ngx_conf_merge_size_value(conf->max_inflate_size, prev->max_inflate_size, 0);
 
     return NGX_CONF_OK;
 }
@@ -340,6 +352,7 @@ ngx_http_gunzip_request_inflate(ngx_http_request_t *r,
     ngx_buf_t    *b;
     ngx_chain_t  *cl;
     size_t        curr;
+    ngx_http_gunzip_request_conf_t *conf;
 
     curr = ctx->zstream.avail_out;
     ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -358,6 +371,16 @@ ngx_http_gunzip_request_inflate(ngx_http_request_t *r,
 
     if (curr > ctx->zstream.avail_out) {
         ctx->sum += curr - ctx->zstream.avail_out;
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "[gunzreq] inflate and update sum: %d", ctx->sum);
+
+        // check overflow of inflate size against zip bomb
+        conf = ngx_http_get_module_loc_conf(r, ngx_http_gunzip_request_module);
+        if (conf->max_inflate_size > 0 && ctx->sum > conf->max_inflate_size) {
+            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                    "[gunzreq] overflow max inflate size: %d > %d", ctx->sum, conf->max_inflate_size);
+            return NGX_DECLINED;
+        }
     }
     ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "[gunzreq] inflate out: ni:%p no:%p ai:%ud ao:%ud rc:%d",
@@ -627,7 +650,7 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             /* ... there are buffers to write zlib output */
             rc = ngx_http_gunzip_request_get_buf(r, ctx);
             if (rc == NGX_DECLINED) {
-                break;
+                goto entity_too_large;
             }
             if (rc == NGX_ERROR) {
                 goto failed;
@@ -639,6 +662,9 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             }
             if (rc == NGX_ERROR) {
                 goto failed;
+            }
+            if (rc == NGX_DECLINED) {
+                goto entity_too_large;
             }
             /* rc == NGX_AGAIN */
         }
@@ -682,6 +708,12 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     /* unreachable */
+
+entity_too_large:
+    ctx->done = 1;
+    (void) ngx_http_discard_request_body(r);
+    ngx_http_finalize_request(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE);
+    return NGX_OK;
 
 failed:
     ctx->done = 1;

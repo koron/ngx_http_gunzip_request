@@ -26,10 +26,25 @@ $ sudo make install
 *   `gunzip_request` - boolean.
     enable this module for location.
 
-*   `gunzip_request_buffers` - integer, optional.
+*   `gunzip_request_buffers` - buffer size, optional.
     number of buffer pages for inflation.
 
-These two configurations can be put into root level, `server` block, and
+    It accepts two args: number of buffers, and size of one buffer.
+    Size of buffer should same with page size of system.
+    (Page size is `4k` for x86/Linux).
+
+    Default is 128KB (`32 4k` or `16 8k`).
+
+    展開後のメッセージのおおよその最大サイズ制限としても機能する。
+    もしバッファに収まりきらない場合は 413 で失敗する。
+
+*   `gunzip_request_max_inflate_size` - integer, optional.
+    Limitate size of inflated request. If it exceeded the limit, nginx will
+    fail with `413 Request Entity Too Large`.
+
+    `gunzip_request_buffers` と合わせて指定する必要がある。
+
+These configurations can be put into root level, `server` block, and
 `location` block.
 
 Example of partial nginx.conf:
@@ -50,6 +65,30 @@ location /gunzip_request/ {
     # unlimit POST body size for tests
     #client_max_body_size 0;
 }
+```
+
+### Limitation on size of inflated request
+
+gunzip展開後のリクエストのサイズには制限があります。このサイズ制限を超えると
+nginxは `413 Request Entity Too Large` エラーをクライアントへ返します。
+
+デフォルトでは 128KB で制限されます。これは `gunzip_request_buffers` のデフォル
+ト値によるものです。制限値を大きくしたい場合はまずこの値を大きくしてください。
+
+1MBに変更する例:
+
+```nginx
+gunzip_request_buffers 256 4k;
+```
+
+`gunzip_request_buffers` による制限だけではリクエストの内容次第では、それよりも
+若干小さいサイズでもエラーになる場合が考えられます。より正確に制限したい場合に
+は `gunzip_request_max_inflate_size` を合わせて指定してください。その際
+`gunzip_request_buffers` には若干大きなサイズ(1.1～2倍程度)を指定してください。
+
+```nginx
+gunzip_request_buffers 281 4k; // 1割増し
+gunzip_request_max_inflate_size 1m;
 ```
 
 ## Dynamic module
