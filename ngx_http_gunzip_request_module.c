@@ -73,7 +73,7 @@ static ngx_command_t  ngx_http_gunzip_request_commands[] = {
 
 static ngx_http_module_t  ngx_http_gunzip_request_module_ctx = {
     NULL,                                  /* preconfiguration */
-    ngx_http_gunzip_request_init,     	   /* postconfiguration */
+    ngx_http_gunzip_request_init,          /* postconfiguration */
 
     NULL,                                  /* create main configuration */
     NULL,                                  /* init main configuration */
@@ -650,7 +650,7 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             /* ... there are buffers to write zlib output */
             rc = ngx_http_gunzip_request_get_buf(r, ctx);
             if (rc == NGX_DECLINED) {
-                break;
+                goto entity_too_large;
             }
             if (rc == NGX_ERROR) {
                 goto failed;
@@ -663,12 +663,9 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             if (rc == NGX_ERROR) {
                 goto failed;
             }
-	    if (rc == NGX_DECLINED) {
-		ctx->done = 1;
-		(void) ngx_http_discard_request_body(r);
-		ngx_http_finalize_request(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE);
-		return NGX_OK;
-	    }
+            if (rc == NGX_DECLINED) {
+                goto entity_too_large;
+            }
             /* rc == NGX_AGAIN */
         }
 
@@ -711,6 +708,12 @@ ngx_http_gunzip_request_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     /* unreachable */
+
+entity_too_large:
+    ctx->done = 1;
+    (void) ngx_http_discard_request_body(r);
+    ngx_http_finalize_request(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE);
+    return NGX_OK;
 
 failed:
     ctx->done = 1;
