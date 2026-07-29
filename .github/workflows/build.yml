@@ -1,0 +1,44 @@
+name: Build Nginx Module
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        nginx_version:
+          - '1.27.2' # NGINX Plus Release 33 (R33)
+          - '1.27.4' # NGINX Plus Release 34 (R34)
+          - '1.29.0' # NGINX Plus Release 35 (R35)
+          - '1.29.3' # NGINX Plus Release 36 (R36)
+          - '1.29.8' # NGINX Plus PLS.37.0.0.1 LTS
+          - '1.30.4' # Stable version
+          - '1.31.3' # Mainline
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libpcre3-dev zlib1g-dev libssl-dev curl
+
+      - name: Download Nginx
+        run: |
+          curl -sSL https://nginx.org/download/nginx-${{ matrix.nginx_version }}.tar.gz | tar -xz
+
+      - name: Build static module
+        run: |
+          cd nginx-${{ matrix.nginx_version }}
+          ./configure --add-module=../
+          make -j$(nproc)
+
+      - name: Build dynamic module
+        run: |
+          cd nginx-${{ matrix.nginx_version }}
+          make clean
+          ./configure --add-dynamic-module=../
+          make -j$(nproc) modules
