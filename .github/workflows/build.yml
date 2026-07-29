@@ -1,0 +1,43 @@
+name: Build Nginx Module
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nginx_version: ['1.20.2', '1.22.1', '1.24.0', '1.26.1', '1.27.0']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libpcre3-dev zlib1g-dev libssl-dev curl
+
+      - name: Download Nginx
+        run: |
+          curl -sSL https://nginx.org/download/nginx-${{ matrix.nginx_version }}.tar.gz | tar -xz
+
+      - name: Build static module
+        run: |
+          cd nginx-${{ matrix.nginx_version }}
+          ./configure --add-module=../
+          make -j$(nproc)
+
+      - name: Build dynamic module
+        run: |
+          cd nginx-${{ matrix.nginx_version }}
+          make clean
+          ./configure --add-dynamic-module=../
+          make -j$(nproc) modules
