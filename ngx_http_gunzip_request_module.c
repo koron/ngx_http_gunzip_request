@@ -402,6 +402,30 @@ ngx_http_gunzip_request_inflate(ngx_http_request_t *r,
 
     ctx->out_buf->last = ctx->zstream.next_out;
 
+    if (rc == Z_STREAM_END) {
+
+        if (ctx->zstream.avail_in > 0) {
+
+            rc = inflateReset(&ctx->zstream);
+
+            if (rc != Z_OK) {
+                ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+                              "[gunzreq] inflateReset() failed: %d", rc);
+                return NGX_ERROR;
+            }
+
+            ctx->redo = 1;
+
+            return NGX_AGAIN;
+        }
+
+        if (ngx_http_gunzip_request_inflate_end(r, ctx) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        return NGX_OK;
+    }
+
     if (ctx->zstream.avail_out == 0) {
 
         /* zlib wants to output some more data */
@@ -457,32 +481,9 @@ ngx_http_gunzip_request_inflate(ngx_http_request_t *r,
 
     if (ctx->flush == Z_FINISH && ctx->zstream.avail_in == 0) {
 
-        if (rc != Z_STREAM_END) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "[gunzreq] inflate() returned %d on response end", rc);
-            return NGX_ERROR;
-        }
-
-        if (ngx_http_gunzip_request_inflate_end(r, ctx) != NGX_OK) {
-            return NGX_ERROR;
-        }
-
-        return NGX_OK;
-    }
-
-    if (rc == Z_STREAM_END && ctx->zstream.avail_in > 0) {
-
-        rc = inflateReset(&ctx->zstream);
-
-        if (rc != Z_OK) {
-            ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
-                          "[gunzreq] inflateReset() failed: %d", rc);
-            return NGX_ERROR;
-        }
-
-        ctx->redo = 1;
-
-        return NGX_AGAIN;
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "[gunzreq] inflate() returned %d on response end", rc);
+        return NGX_ERROR;
     }
 
     if (ctx->in == NULL) {
@@ -717,6 +718,7 @@ entity_too_large:
 
 failed:
     ctx->done = 1;
+    ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
     return NGX_ERROR;
 }
 
