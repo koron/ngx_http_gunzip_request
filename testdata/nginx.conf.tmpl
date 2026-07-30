@@ -1,0 +1,28 @@
+worker_processes  1;
+error_log  logs/error.log;
+pid        nginx.pid;
+
+#daemon off;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       ../nginx-${NGINX_VERSION}/conf/mime.types;
+    default_type  application/octet-stream;
+    access_log    logs/access.log;
+
+    server {
+        listen       8080;
+        server_name  localhost;
+
+        # 現在のディレクトリを公開
+        root   .;
+        index  index.html index.htm;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+}

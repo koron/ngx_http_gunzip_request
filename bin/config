@@ -1,0 +1,12 @@
+NGINX_VERSION='1.30.4'
+
+build_dir="build/nginx-$NGINX_VERSION"
+run_dir="build/run-$NGINX_VERSION"
+
+nginx_cmd="$build_dir/objs/nginx"
+
+need_update() {
+  src="$1"
+  dst="$2"
+  [[ ! -e "$dst" || "$src" -nt "$dst" ]]
+}

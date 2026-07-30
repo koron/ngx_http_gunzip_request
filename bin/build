@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+source "$(dirname "$0")/config"
+
+if [[ ! -d build ]]; then
+  mkdir -p build
+fi
+
+# Download and extract nginx's source
+if [[ ! -d "$build_dir" ]]; then
+  (
+    cd build
+    curl -sSL "https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz" | tar -xz
+  )
+fi
+
+# Build nginx with static module.
+source="ngx_http_gunzip_request_module.c"
+if [[ ! -e "$nginx_cmd" || "$source" -nt "$nginx_cmd" ]]; then
+  (
+    cd "$build_dir"
+    ./configure --add-module=../..
+    make -j$(nproc)
+  )
+fi
