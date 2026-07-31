@@ -13,6 +13,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: stable
+          cache-dependency-path: 'test/go.sum'
 
       - name: Install dependencies
         run: |
