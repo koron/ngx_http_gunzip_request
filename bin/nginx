@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+source "$(dirname "$0")/config"
+
+# Create runtime directory
+if [[ ! -d "$run_dir" ]]; then
+  mkdir -p "$run_dir/logs"
+fi
+
+# Setup configuration
+if need_update "$root_dir/bin/nginx.conf.tmpl" "$run_dir/nginx.conf"; then
+  (
+    export NGINX_VERSION
+    echo "update $run_dir/nginx.conf"
+    envsubst < "$root_dir/bin/nginx.conf.tmpl" > "$run_dir/nginx.conf"
+  )
+fi
+
+exec "$build_dir/objs/nginx" -p "$run_dir" -c nginx.conf "$@"
