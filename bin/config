@@ -1,7 +1,8 @@
 NGINX_VERSION='1.30.4'
 
-build_dir="build/nginx-$NGINX_VERSION"
-run_dir="build/run-$NGINX_VERSION"
+root_dir="$(realpath -s "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/..")"
+build_dir="$root_dir/build/nginx-$NGINX_VERSION"
+run_dir="$root_dir/build/run-$NGINX_VERSION"
 
 nginx_cmd="$build_dir/objs/nginx"
 
@@ -10,3 +11,5 @@ need_update() {
   dst="$2"
   [[ ! -e "$dst" || "$src" -nt "$dst" ]]
 }
+
+# vim:set ft=bash:

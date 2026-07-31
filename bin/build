@@ -4,8 +4,8 @@ set -euo pipefail
 
 source "$(dirname "$0")/config"
 
-if [[ ! -d build ]]; then
-  mkdir -p build
+if [[ ! -d "$root_dir/build" ]]; then
+  mkdir -p "$root_dir/build"
 fi
 
 # Download and extract nginx's source

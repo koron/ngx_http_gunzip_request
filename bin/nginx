@@ -10,11 +10,11 @@ if [[ ! -d "$run_dir" ]]; then
 fi
 
 # Setup configuration
-if need_update testdata/nginx.conf.tmpl "$run_dir/nginx.conf"; then
+if need_update "$root_dir/bin/nginx.conf.tmpl" "$run_dir/nginx.conf"; then
   (
     export NGINX_VERSION
     echo "update $run_dir/nginx.conf"
-    envsubst < testdata/nginx.conf.tmpl > "$run_dir/nginx.conf"
+    envsubst < "$root_dir/bin/nginx.conf.tmpl" > "$run_dir/nginx.conf"
   )
 fi
 
